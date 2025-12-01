@@ -168,6 +168,27 @@
                 } catch(e){}
             }
 
+            // Strategy 3.5: GitHub repository contents via GitHub API
+            if (!articles.length) {
+                updateToolbar('Querying GitHub repository contents via API…');
+                try {
+                    const apiUrl = 'https://api.github.com/repos/fr3qu3ncy/satirised-news-website/contents/';
+                    const r = await fetch(apiUrl, {cache:'no-store', headers: {'Accept':'application/vnd.github.v3+json'}});
+                    if (r.ok) {
+                        const data = await r.json();
+                        if (Array.isArray(data) && data.length) {
+                            const files = data.filter(f => f.type === 'file' && /\.(html?|md)$/i.test(f.name));
+                            const usable = files.filter(f => !/^(index|README)\.md?$/i.test(f.name));
+                            if (usable.length) {
+                                const siteBase = 'https://fr3qu3ncy.github.io/satirised-news-website/';
+                                articles = usable.map(f => ({title:'', url: siteBase + encodeURI(f.path), image:'', excerpt:'', date:''}));
+                                updateToolbar('Loaded file list from GitHub repo');
+                            }
+                        }
+                    }
+                } catch(e){}
+            }
+
             // Strategy 4: fallback — try scanning root by attempting to fetch common article filenames
             if (!articles.length) {
                 updateToolbar('Trying common filenames (article1.html, news-*.html)…');
