@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Satirised News — Front Page</title>
+    <style>
+        :root{
+            --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#ff6b6b; --glass:rgba(255,255,255,0.03);
+            --max-width:1100px; --gap:20px; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        }
+        html,body{height:100%; margin:0; background:linear-gradient(180deg,#071021 0%, #081226 60%); color:#e6eef6;}
+        .site{max-width:var(--max-width); margin:32px auto; padding:24px; display:grid; gap:var(--gap);}
+        header{display:flex; align-items:center; gap:18px;}
+        .brand{display:flex; flex-direction:column;}
+        .brand h1{margin:0; font-size:20px; letter-spacing:0.6px;}
+        .brand p{margin:0; color:var(--muted); font-size:13px;}
+        .toolbar{margin-left:auto; color:var(--muted); font-size:13px;}
+        .layout{display:grid; grid-template-columns: 1fr 360px; gap:var(--gap);}
+        .main{display:grid; gap:18px;}
+        .hero{background:linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.45)), var(--glass); border-radius:10px; overflow:hidden; display:flex; gap:16px; padding:16px; align-items:flex-end;}
+        .hero img{width:50%; height:220px; object-fit:cover; border-radius:8px;}
+        .hero .meta{flex:1; padding:8px 4px;}
+        .hero h2{margin:0 0 8px 0; font-size:22px;}
+        .hero p{margin:0; color:var(--muted);}
+        .grid{display:grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap:16px;}
+        .card{background:var(--card); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; min-height:180px;}
+        .card img{width:100%; height:140px; object-fit:cover;}
+        .card .c-body{padding:12px; display:flex; flex-direction:column; gap:6px; flex:1;}
+        .card h3{margin:0; font-size:16px;}
+        .card p{margin:0; color:var(--muted); font-size:13px; flex:1;}
+        .aside{position:relative; display:flex; flex-direction:column; gap:12px;}
+        .panel{background:var(--card); border-radius:10px; padding:12px;}
+        .small-list{display:flex; flex-direction:column; gap:10px;}
+        .small{display:flex; gap:10px; align-items:center;}
+        .small img{width:64px; height:48px; object-fit:cover; border-radius:6px;}
+        .small .s-meta{display:flex; flex-direction:column;}
+        .s-meta h4{margin:0; font-size:14px;}
+        .s-meta p{margin:0; font-size:12px; color:var(--muted);}
+        .note{color:var(--muted); font-size:13px;}
+        .loading{color:var(--muted); font-size:14px; padding:12px;}
+        a { color:inherit; text-decoration:none; }
+        @media (max-width:900px){
+            .layout{grid-template-columns: 1fr; }
+            .hero img{display:none;}
+        }
+    </style>
+</head>
+<body>
+    <div class="site">
+        <header>
+            <div class="brand">
+                <h1>Satirised News</h1>
+                <p>Front page — freshly discovered articles</p>
+            </div>
+            <div class="toolbar">Auto-discovering articles…</div>
+        </header>
+
+        <div class="layout">
+            <main class="main">
+                <section id="heroSection" class="hero" hidden>
+                    <img id="heroImg" alt="">
+                    <div class="meta">
+                        <h2 id="heroTitle"></h2>
+                        <p id="heroExcerpt"></p>
+                        <p class="note" id="heroMeta"></p>
+                    </div>
+                </section>
+
+                <section id="gridSection" class="grid"></section>
+
+                <div id="noData" class="panel note" style="display:none">
+                    No article index could be found automatically. To enable auto-discovery, either:
+                    <ul>
+                        <li>Place a JSON manifest at /articles.json (array of {title,url,image,excerpt,date})</li>
+                        <li>Or host a directory index that the site can fetch (Apache/nginx autoindex)</li>
+                    </ul>
+                </div>
+            </main>
+
+            <aside class="aside">
+                <div class="panel">
+                    <strong>Latest</strong>
+                    <div id="latestList" class="small-list" style="margin-top:10px"></div>
+                </div>
+
+                <div class="panel">
+                    <strong>About</strong>
+                    <p class="note" style="margin-top:8px">This page tries several strategies to discover article files in the site root and shows the first image, title and excerpt from each article.</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        (async function(){
+            const toolbar = document.querySelector('.toolbar');
+            const grid = document.getElementById('gridSection');
+            const heroSection = document.getElementById('heroSection');
+            const heroImg = document.getElementById('heroImg');
+            const heroTitle = document.getElementById('heroTitle');
+            const heroExcerpt = document.getElementById('heroExcerpt');
+            const heroMeta = document.getElementById('heroMeta');
+            const latestList = document.getElementById('latestList');
+            const noData = document.getElementById('noData');
+
+            const sameOrigin = url => {
+                try { const u = new URL(url, location.href); return u.origin === location.origin; } catch(e){ return false; }
+            };
+
+            function updateToolbar(text){ toolbar.textContent = text; }
+
+            // Attempt strategies in order
+            let articles = [];
+
+            // Strategy 1: /articles.json manifest
+            updateToolbar('Looking for /articles.json manifest…');
+            try {
+                const r = await fetch('/articles.json', {cache:'no-store'});
+                if (r.ok) {
+                    const data = await r.json();
+                    if (Array.isArray(data) && data.length) {
+                        articles = data.map(a => ({title:a.title||a.name||'', url:a.url||a.link||a.path||'', image:a.image||'', excerpt:a.excerpt||'', date:a.date||''}));
+                        updateToolbar('Loaded manifest /articles.json');
+                    }
+                }
+            } catch(e){ /* ignore */ }
+
+            // Strategy 2: sitemap.xml
+            if (!articles.length) {
+                updateToolbar('Trying /sitemap.xml…');
+                try {
+                    const r = await fetch('/sitemap.xml', {cache:'no-store'});
+                    if (r.ok){
+                        const txt = await r.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(txt, 'application/xml');
+                        const locs = Array.from(doc.querySelectorAll('loc')).map(n => n.textContent.trim()).filter(Boolean);
+                        const filtered = locs.filter(u => sameOrigin(u) && new URL(u).pathname.split('/').filter(Boolean).length <= 1);
+                        if (filtered.length){
+                            articles = filtered.map(u=>({title:'', url:new URL(u).pathname, image:'', excerpt:'', date:''}));
+                            updateToolbar('Found pages in sitemap.xml');
+                        }
+                    }
+                } catch(e){}
+            }
+
+            // Strategy 3: directory index (Apache/nginx autoindex)
+            if (!articles.length) {
+                updateToolbar('Checking for directory index at / …');
+                try {
+                    const r = await fetch('/', {cache:'no-store'});
+                    if (r.ok) {
+                        const txt = await r.text();
+                        // detect "Index of" pages and parse anchors
+                        if (/Index of|Directory listing|Parent Directory/i.test(txt)) {
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(txt, 'text/html');
+                            const anchors = Array.from(doc.querySelectorAll('a')).map(a => a.getAttribute('href')).filter(Boolean);
+                            const files = anchors.filter(h => !/\/$/.test(h)).filter(h => /\.(html?|htm)$/i.test(h)).map(h => (new URL(h, location.origin)).pathname).filter(p=>p!==location.pathname && p!=='/index.html');
+                            const unique = Array.from(new Set(files));
+                            if (unique.length) {
+                                articles = unique.map(u=>({title:'', url:u, image:'', excerpt:'', date:''}));
+                                updateToolbar('Parsed directory listing at /');
+                            }
+                        }
+                    }
+                } catch(e){}
+            }
+
+            // Strategy 4: fallback — try scanning root by attempting to fetch common article filenames
+            if (!articles.length) {
+                updateToolbar('Trying common filenames (article1.html, news-*.html)…');
+                const candidates = ['article1.html','article2.html','news.html','news-1.html','story.html'];
+                const found = [];
+                for (const c of candidates) {
+                    try {
+                        const r = await fetch('/' + c, {method:'HEAD'});
+                        if (r.ok) found.push('/' + c);
+                    } catch(e){}
+                }
+                if (found.length) {
+                    articles = found.map(u=>({title:'', url:u, image:'', excerpt:'', date:''}));
+                    updateToolbar('Found some articles by common filenames');
+                }
+            }
+
+            // If we still have no articles, show a message
+            if (!articles.length) {
+                updateToolbar('No article index discovered');
+                noData.style.display = 'block';
+                return;
+            }
+
+            // Now enrich each article by fetching the page and extracting title, first image, first paragraph/meta description
+            updateToolbar('Fetching article pages to extract metadata…');
+            async function fetchMeta(item){
+                try {
+                    const r = await fetch(item.url, {cache:'no-store'});
+                    if (!r.ok) return item;
+                    const txt = await r.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(txt, 'text/html');
+                    const title = doc.querySelector('meta[property="og:title"]')?.content || doc.querySelector('meta[name="twitter:title"]')?.content || doc.querySelector('title')?.textContent || item.title || '';
+                    const desc = doc.querySelector('meta[name="description"]')?.content || doc.querySelector('meta[property="og:description"]')?.content || doc.querySelector('meta[name="twitter:description"]')?.content || (doc.querySelector('p')?.textContent || '').slice(0,220);
+                    const img = doc.querySelector('meta[property="og:image"]')?.content || doc.querySelector('meta[name="twitter:image"]')?.content || doc.querySelector('img')?.getAttribute('src') || item.image || '';
+                    const date = doc.querySelector('time')?.getAttribute('datetime') || doc.querySelector('meta[name="date"]')?.content || item.date || '';
+                    // Normalize relative image URLs
+                    let imgUrl = '';
+                    if (img) {
+                        try { imgUrl = new URL(img, item.url).href; } catch(e){ imgUrl = img; }
+                    }
+                    return {title:title.trim(), url:item.url, image: imgUrl, excerpt: desc.trim(), date: date};
+                } catch(e){
+                    return item;
+                }
+            }
+
+            const enriched = [];
+            for (const it of articles){
+                const prepared = it.url ? it : ({...it});
+                // Ensure url is absolute or root-relative
+                try { prepared.url = new URL(prepared.url, location.href).href; } catch(e){ prepared.url = prepared.url; }
+                const meta = await fetchMeta(prepared);
+                enriched.push(meta);
+            }
+
+            // Sort by date if available, otherwise keep order
+            enriched.sort((a,b)=> {
+                if (a.date && b.date) return new Date(b.date) - new Date(a.date);
+                return 0;
+            });
+
+            // Build UI: hero + grid + latest aside
+            const items = enriched.map(e => ({
+                title: e.title || (new URL(e.url)).pathname.replace(/^\//,''),
+                url: e.url,
+                image: e.image || '',
+                excerpt: (e.excerpt||'').slice(0,200),
+                date: e.date||''
+            }));
+
+            if (items.length) {
+                const lead = items[0];
+                heroSection.hidden = false;
+                if (lead.image) {
+                    heroImg.src = lead.image;
+                    heroImg.alt = lead.title;
+                } else {
+                    heroImg.style.display = 'none';
+                }
+                heroTitle.innerHTML = `<a href="${lead.url}">${escapeHtml(lead.title)}</a>`;
+                heroExcerpt.textContent = lead.excerpt;
+                heroMeta.textContent = lead.date ? `Published: ${lead.date}` : '';
+            }
+
+            // Populate grid with remaining (including lead for cards)
+            grid.innerHTML = '';
+            for (const it of items) {
+                const el = document.createElement('article');
+                el.className = 'card';
+                el.innerHTML = `
+                    ${it.image ? `<img loading="lazy" src="${it.image}" alt="${escapeHtml(it.title)}">` : ''}
+                    <div class="c-body">
+                        <h3><a href="${it.url}">${escapeHtml(it.title)}</a></h3>
+                        <p>${escapeHtml(it.excerpt)}</p>
+                    </div>
+                `;
+                grid.appendChild(el);
+            }
+
+            // Latest list (sidebar)
+            latestList.innerHTML = '';
+            for (const it of items.slice(0,6)) {
+                const node = document.createElement('div');
+                node.className = 'small';
+                node.innerHTML = `
+                    ${it.image ? `<img loading="lazy" src="${it.image}" alt="${escapeHtml(it.title)}">` : `<div style="width:64px;height:48px;background:#091426;border-radius:6px"></div>`}
+                    <div class="s-meta">
+                        <h4><a href="${it.url}">${escapeHtml(it.title)}</a></h4>
+                        <p>${escapeHtml(it.date || '')}</p>
+                    </div>
+                `;
+                latestList.appendChild(node);
+            }
+
+            updateToolbar(`Showing ${items.length} articles`);
+
+            // small util: escape HTML
+            function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+        })();
+    </script>
+</body>
+</html>
