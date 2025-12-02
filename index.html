@@ -222,9 +222,10 @@
                     const txt = await r.text();
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(txt, 'text/html');
-                    const title = doc.querySelector('meta[property="og:title"]')?.content || doc.querySelector('meta[name="twitter:title"]')?.content || doc.querySelector('title')?.textContent || item.title || '';
-                    const desc = doc.querySelector('meta[name="description"]')?.content || doc.querySelector('meta[property="og:description"]')?.content || doc.querySelector('meta[name="twitter:description"]')?.content || (doc.querySelector('p')?.textContent || '').slice(0,220);
-                    const img = doc.querySelector('meta[property="og:image"]')?.content || doc.querySelector('meta[name="twitter:image"]')?.content || doc.querySelector('img')?.getAttribute('src') || item.image || '';
+                    // Try new format first (.headline h2, .summery p, .image img), then fall back to meta tags
+                    const title = doc.querySelector('.headline h2')?.textContent || doc.querySelector('meta[property="og:title"]')?.content || doc.querySelector('meta[name="twitter:title"]')?.content || doc.querySelector('title')?.textContent || item.title || '';
+                    const desc = doc.querySelector('.summery p')?.textContent || doc.querySelector('meta[name="description"]')?.content || doc.querySelector('meta[property="og:description"]')?.content || doc.querySelector('meta[name="twitter:description"]')?.content || (doc.querySelector('p')?.textContent || '').slice(0,220);
+                    const img = doc.querySelector('.image img')?.getAttribute('src') || doc.querySelector('meta[property="og:image"]')?.content || doc.querySelector('meta[name="twitter:image"]')?.content || doc.querySelector('img')?.getAttribute('src') || item.image || '';
                     const date = doc.querySelector('time')?.getAttribute('datetime') || doc.querySelector('meta[name="date"]')?.content || item.date || '';
                     // Normalize relative image URLs
                     let imgUrl = '';
