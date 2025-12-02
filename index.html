@@ -138,7 +138,12 @@
                         const locs = Array.from(doc.querySelectorAll('loc')).map(n => n.textContent.trim()).filter(Boolean);
                         const filtered = locs.filter(u => sameOrigin(u) && new URL(u).pathname.split('/').filter(Boolean).length <= 1);
                         if (filtered.length){
-                            articles = filtered.map(u=>({title:'', url:new URL(u).pathname, image:'', excerpt:'', date:''}));
+                            articles = filtered.map(u=>{
+                                const p = new URL(u).pathname;
+                                const name = p.split('/').filter(Boolean).pop() || '';
+                                const m = name.match(/^(\d{4}-\d{2}-\d{2})/);
+                                return {title:'', url:p, image:'', excerpt:'', date: m ? m[1] : ''};
+                            });
                             updateToolbar('Found pages in sitemap.xml');
                         }
                     }
@@ -160,7 +165,11 @@
                             const files = anchors.filter(h => !/\/$/.test(h)).filter(h => /\.(html?|htm)$/i.test(h)).map(h => (new URL(h, location.origin)).pathname).filter(p=>p!==location.pathname && p!=='/index.html');
                             const unique = Array.from(new Set(files));
                             if (unique.length) {
-                                articles = unique.map(u=>({title:'', url:u, image:'', excerpt:'', date:''}));
+                                articles = unique.map(u=>{
+                                    const name = u.split('/').filter(Boolean).pop() || '';
+                                    const m = name.match(/^(\d{4}-\d{2}-\d{2})/);
+                                    return {title:'', url:u, image:'', excerpt:'', date: m ? m[1] : ''};
+                                });
                                 updateToolbar('Parsed directory listing at /');
                             }
                         }
@@ -181,7 +190,10 @@
                             const usable = files.filter(f => !/^(index|README)\.md?$/i.test(f.name));
                             if (usable.length) {
                                 const siteBase = 'https://fr3qu3ncy.github.io/satirised-news-website/';
-                                articles = usable.map(f => ({title:'', url: siteBase + encodeURI(f.path), image:'', excerpt:'', date:''}));
+                                articles = usable.map(f => {
+                                    const m = f.name.match(/^(\d{4}-\d{2}-\d{2})/);
+                                    return {title:'', url: siteBase + encodeURI(f.path), image:'', excerpt:'', date: m ? m[1] : ''};
+                                });
                                 updateToolbar('Loaded file list from GitHub repo');
                             }
                         }
@@ -247,10 +259,18 @@
                 enriched.push(meta);
             }
 
-            // Sort by date if available, otherwise keep order
-            enriched.sort((a,b)=> {
-                if (a.date && b.date) return new Date(b.date) - new Date(a.date);
-                return 0;
+            // Sort by date (newest first). Prefer explicit date fields, otherwise extract from URL/filename.
+            function extractDateFromString(s){
+                try {
+                    const m = String(s||'').match(/(\d{4}-\d{2}-\d{2})/);
+                    return m ? new Date(m[1]) : null;
+                } catch(e){ return null; }
+            }
+
+            enriched.sort((a,b)=>{
+                const da = a.date ? new Date(a.date) : extractDateFromString(a.url) || new Date(0);
+                const db = b.date ? new Date(b.date) : extractDateFromString(b.url) || new Date(0);
+                return db - da;
             });
 
             // Build UI: hero + grid + latest aside
