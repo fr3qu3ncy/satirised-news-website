@@ -141,8 +141,8 @@
                             articles = filtered.map(u=>{
                                 const p = new URL(u).pathname;
                                 const name = p.split('/').filter(Boolean).pop() || '';
-                                const m = name.match(/^(\d{4}-\d{2}-\d{2})/);
-                                return {title:'', url:p, image:'', excerpt:'', date: m ? m[1] : ''};
+                                const m = name.match(/^(\d{4}-\d{1,2}-\d{1,2})/);
+                                return {title:'', url:p, image:'', excerpt:'', date: m ? normalizeDateStr(m[0]) : ''};
                             });
                             updateToolbar('Found pages in sitemap.xml');
                         }
@@ -167,8 +167,8 @@
                             if (unique.length) {
                                 articles = unique.map(u=>{
                                     const name = u.split('/').filter(Boolean).pop() || '';
-                                    const m = name.match(/^(\d{4}-\d{2}-\d{2})/);
-                                    return {title:'', url:u, image:'', excerpt:'', date: m ? m[1] : ''};
+                                    const m = name.match(/^(\d{4}-\d{1,2}-\d{1,2})/);
+                                    return {title:'', url:u, image:'', excerpt:'', date: m ? normalizeDateStr(m[0]) : ''};
                                 });
                                 updateToolbar('Parsed directory listing at /');
                             }
@@ -191,8 +191,8 @@
                             if (usable.length) {
                                 const siteBase = 'https://fr3qu3ncy.github.io/satirised-news-website/';
                                 articles = usable.map(f => {
-                                    const m = f.name.match(/^(\d{4}-\d{2}-\d{2})/);
-                                    return {title:'', url: siteBase + encodeURI(f.path), image:'', excerpt:'', date: m ? m[1] : ''};
+                                    const m = f.name.match(/^(\d{4}-\d{1,2}-\d{1,2})/);
+                                    return {title:'', url: siteBase + encodeURI(f.path), image:'', excerpt:'', date: m ? normalizeDateStr(m[0]) : ''};
                                 });
                                 updateToolbar('Loaded file list from GitHub repo');
                             }
@@ -260,16 +260,25 @@
             }
 
             // Sort by date (newest first). Prefer explicit date fields, otherwise extract from URL/filename.
+            function normalizeDateStr(s){
+                const m = String(s||'').match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+                if(!m) return null;
+                const yyyy = m[1];
+                const mm = String(m[2]).padStart(2,'0');
+                const dd = String(m[3]).padStart(2,'0');
+                return `${yyyy}-${mm}-${dd}`;
+            }
+
             function extractDateFromString(s){
                 try {
-                    const m = String(s||'').match(/(\d{4}-\d{2}-\d{2})/);
-                    return m ? new Date(m[1]) : null;
+                    const norm = normalizeDateStr(s);
+                    return norm ? new Date(norm) : null;
                 } catch(e){ return null; }
             }
 
             enriched.sort((a,b)=>{
-                const da = a.date ? new Date(a.date) : extractDateFromString(a.url) || new Date(0);
-                const db = b.date ? new Date(b.date) : extractDateFromString(b.url) || new Date(0);
+                const da = a.date ? new Date(a.date) : (extractDateFromString(a.url) || new Date(0));
+                const db = b.date ? new Date(b.date) : (extractDateFromString(b.url) || new Date(0));
                 return db - da;
             });
 
